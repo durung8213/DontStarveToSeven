@@ -1,0 +1,3 @@
+---,ItemClass,Equipment,CraftRecipe,CraftMaterial,Consumables,StaticMesh,InventoryImage
+Default,Default,None,None,None,None,None,None
+TestItem,Equipment,Weapon,None,None,None,/Script/Engine.StaticMesh'/Game/StarterContent/Architecture/Pillar_50x500.Pillar_50x500',/Script/Engine.Texture2D'/Game/Leesh/Image/TestImage.TestImage'
