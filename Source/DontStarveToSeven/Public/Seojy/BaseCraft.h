@@ -15,9 +15,9 @@ class DONTSTARVETOSEVEN_API ABaseCraft : public AActor, public IDTS_BPIInteracti
 	GENERATED_BODY()
 
 	// UAIPerceptionStimuliSourceComponent를 미리 전방 선언합니다.
-class UAIPerceptionStimuliSourceComponent;
+	class UAIPerceptionStimuliSourceComponent;
 
-public:	
+public:
 	ABaseCraft();
 	virtual void Tick(float DeltaTime) override;
 
@@ -32,14 +32,14 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "CraftMode")
 	virtual void SetCraftMode(ECraftMode NewMode);
 
-	 //HP 획득 ( 수리 )
+	//HP 획득 ( 수리 )
 	UFUNCTION(BlueprintPure, Category = "CraftHP")
 	float GetCraftHP() const;
 
-	 //HP 증감 ( 공격 받음 / 수리 )
-	UFUNCTION(Server,Reliable)
-	void ApplyDamage(bool IsPlus, float amount); 
-	
+	//HP 증감 ( 공격 받음 / 수리 )
+	UFUNCTION(Server, Reliable)
+	void ApplyDamage(bool IsPlus, float amount);
+
 	// 크래프트 삭제 함수
 	UFUNCTION()
 	void BrokenCraft();
@@ -93,7 +93,7 @@ protected:
 public:
 
 	// 크래프팅(고스트) / 원본 모드 (플레이어 상호작용)
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly,Replicated, Category = "CraftMode")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category = "CraftMode")
 	ECraftMode CurrentMode = ECraftMode::Ghost;;
 
 	//고스트 머테리얼

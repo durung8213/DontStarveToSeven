@@ -34,6 +34,6 @@ void UBTService_CheckAttackTarget::TickNode(UBehaviorTreeComponent& OwnerComp, u
         // 상태를 Passive로 전환하고 AttackTarget 키를 클리어합니다.
         BlackboardComp->SetValueAsEnum(FName("State"), static_cast<uint8>(E_AIState::Passive));
         BlackboardComp->ClearValue(FName("AttackTarget"));
-        UE_LOG(LogTemp, Log, TEXT("[BTService] AttackTarget is invalid, clearing key and setting state to Passive."));
+        //UE_LOG(LogTemp, Log, TEXT("[BTService] AttackTarget is invalid, clearing key and setting state to Passive."));
     }
 }

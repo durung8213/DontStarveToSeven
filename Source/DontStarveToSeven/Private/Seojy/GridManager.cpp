@@ -79,11 +79,11 @@ FVector UGridManager::SnapToGrid(FVector WorldLocation)
 	return result;
 }
 
+// SnapToGrid 의 리팩토링 함수
+// 해당 함수와 실행하는 것이 동일하지만 반환값과 매개변수가 다르다.
+
 bool UGridManager::TrySnapToGrid(FVector WorldLocation, FVector& OutSnapedLocation)
 {
-	// SnapToGrid 의 리팩토링 함수
-	// 해당 함수와 실행하는 것이 동일하지만 반환값과 매개변수가 다르다.
-
 	// 로케이션 좌표의 평균 가운데 좌표를 구한다.
 	int32 GridX = FMath::RoundToInt((WorldLocation.X - GridOrigin.X) / GridSize);
 	int32 GridY = FMath::RoundToInt((WorldLocation.Y - GridOrigin.Y) / GridSize);
@@ -143,11 +143,9 @@ bool UGridManager::CanPlaceBuilding(FVector Location, int32 Width, int32 Height)
 
 	TArray<FOverlapResult> OverlapResults;
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(CanPlaceBuilding), false);
+
 	//필요한 경우 배치 대상 액터나 이미 캐싱된 오브젝트를 무시합니다.
 	//QueryParams.AddIgnoredActor(Ghostmesh);
-
-	//FCollisionObjectQueryParams ObjectQueryParams;
-	//ObjectQueryParams.AddObjectTypesToQuery(ECollisionChannel::ECC_GameTraceChannel1);
 
 	bool bHasOverlap = GetWorld()->OverlapMultiByObjectType
 	(
@@ -323,7 +321,7 @@ void UGridManager::CreateGridDecals(UWorld* InWorld, UMaterialInterface* DecalMa
 		return;
 	}
 
-	if (!InWorld->IsNetMode(NM_DedicatedServer))
+	if (InWorld->IsNetMode(NM_Client))
 	{
 		// 이미 존재하는 decal Component 가 있다면 정리
 		for (UDecalComponent* ExistingDecal : GridDecals)
@@ -365,10 +363,14 @@ void UGridManager::CreateGridDecals(UWorld* InWorld, UMaterialInterface* DecalMa
 				SpawnedDecal->SetFadeScreenSize(0.001f);
 
 				// 필요시 SortOrder 등을 추가 설정
-
-
 				// 데칼 참조 보관
 				GridDecals.Add(SpawnedDecal);
+
+				UE_LOG(LogTemp, Warning, TEXT("SpawnedDecal Success"));
+			}
+			else 
+			{
+				UE_LOG(LogTemp, Warning, TEXT("SpawnedDecal Fail"));
 			}
 		}
 

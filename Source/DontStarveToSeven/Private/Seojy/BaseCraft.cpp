@@ -105,7 +105,7 @@ void ABaseCraft::BrokenCraft()
 
 void ABaseCraft::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (HasAuthority()&& OtherActor && OtherActor->ActorHasTag(FName("Enemy")))
+	if (HasAuthority() && OtherActor && OtherActor->ActorHasTag(FName("Enemy")))
 	{
 		// 체력 하락
 		TakeDamage(10.0f, OtherActor);
@@ -159,7 +159,7 @@ void ABaseCraft::Multi_PlayHitEffect_Implementation(const FVector& SpawnLocation
 			HitEffect,
 			this->GetActorTransform());
 	}
-	
+
 }
 
 
@@ -232,7 +232,7 @@ void ABaseCraft::ApplyDamage_Implementation(bool IsPlus, float amount)
 // 현재 건축 모드를 세팅한다.
 void ABaseCraft::ApplyBuildingMode()
 {
-	if (ActorMeshComponents.Num() ==0)
+	if (ActorMeshComponents.Num() == 0)
 		return;
 
 	DynamicMatInstances.Empty();
@@ -269,7 +269,7 @@ void ABaseCraft::ApplyBuildingMode()
 			MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		}
 	}
-	
+
 }
 
 void ABaseCraft::SetBuildingData(int32 Width, int32 Height, ECraftType CraftType)

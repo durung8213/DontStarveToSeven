@@ -19,6 +19,13 @@ UCraftManager::UCraftManager(const FObjectInitializer& ObjectInitializer)
 	// GridManager 생성 
 	GridManager = ObjectInitializer.CreateDefaultSubobject<UGridManager>(this, TEXT("GridManager"));
 
+
+	/*static ConstructorHelpers::FObjectFinder<UMaterialInterface> DecalMat(
+		TEXT("/Game/Seojy/Material/M_Decal.M_Decal"));
+	if (DecalMat.Succeeded())
+	{
+		GridDecalMaterialSoft = DecalMat.Object;
+	}*/
 }
 
 
@@ -68,6 +75,7 @@ void UCraftManager::SetGhostMesh(ECraftType CraftType)
 	}
 }
 
+// Craft 버튼을 누르면 실행되는 함수
 void UCraftManager::StartCraftMode(ECraftType craftType)
 {
 	// 해당 레벨에서 LandScape를 가져오기.
@@ -84,39 +92,38 @@ void UCraftManager::StartCraftMode(ECraftType craftType)
 	// 격자 시스템 초기화 
 	if (GridManager)
 	{
+		UE_LOG(LogTemp, Warning, TEXT("GridManager 유효"));
+
 		//명시적으로 월드 포인터를 GridManager에 전달
 		GridManager->SetWorld(GetWorld());
 
 		//터레인을 기준으로 격자 초기화
 		if (TerrainActor)
 		{
+			UE_LOG(LogTemp, Warning, TEXT("TerrainActor 유효"));
 			GridManager->GridCells.Empty();
 
-
+			// 셀 크기 200 으로 초기화
 			GridManager->InitializeGridFromTerrain(TerrainActor, 200);
 			UE_LOG(LogTemp, Warning, TEXT("그리드 매니저 생성"));
+
+			// 디버그용 그리드 출력
 			//GridManager->DrawDebugGrid(GetWorld());
 
-			//데칼용 머테리얼 로드
-			UMaterialInterface* GridDecalMat = LoadObject<UMaterialInterface>
-				(
-					nullptr, TEXT("Material'/Game/Seojy/Material/M_Decal.M_Decal'")
-				);
-			if (GridDecalMat)
-			{
-				if (GetOwner()->HasAuthority())
-				{
-				}
-				else
-				{
-					GridManager->CreateGridDecals(GetWorld(), GridDecalMat);
-				}
-			}
+			// 클라이언트 용 그리드 데칼 생성
+			Client_SpawnGridDecal();
+		}
+		else 
+		{
+			UE_LOG(LogTemp, Warning, TEXT("TerrainActor 없음"));
 		}
 
 	}
+
+	// GhostMesh 생성
 	if (!GhostMesh)
 	{
+		// 해당 Enum 타입에 맞는 클래스 가져오기
 		UClass* craftClass = GetActorClass(craftType);
 		if (!craftClass)
 		{
@@ -124,6 +131,7 @@ void UCraftManager::StartCraftMode(ECraftType craftType)
 			return;
 		}
 
+		// 고스트 메쉬 생성
 		GhostMesh = GetWorld()->SpawnActor<ABaseCraft>
 			(
 				GetActorClass(craftType),
@@ -150,6 +158,11 @@ void UCraftManager::EndCraftMode()
 {
 
 	ClientEndCraftMode();
+}
+
+void UCraftManager::Client_SpawnGridDecal_Implementation()
+{
+	SpawnGridDecal();
 }
 
 void UCraftManager::ClientEndCraftMode_Implementation()
@@ -309,6 +322,7 @@ bool UCraftManager::ServerTryPlaceBuilding_Validate(
 {
 	return true;
 }
+
 // 계속해서 고스트 메쉬를 업데이트 한다.
 void UCraftManager::UpdateGhostMesh()
 {
@@ -398,11 +412,12 @@ void UCraftManager::UpdateGhostMesh()
 	//Overlap 검사 결과에 따라 GHostMesh 머티리얼 변경
 	GhostMesh->SetPreviewColor(!bFinalOverlap);
 
-	// 수정
+	// 건물 설치 가능 여부 설정
 	GhostMesh->bIsCanBuild = !bFinalOverlap;
 }
 
 // 프리뷰 건물의 위치를 카메라에서 나오는 라인 트레이스를 활용하여 쏜다.
+// 무조건 격자 내 중심점에 위치하도록 스냅한다.
 FVector UCraftManager::GetPlacementLocation()
 {
 	if (!PlayerPC)
@@ -429,6 +444,8 @@ FVector UCraftManager::GetPlacementLocation()
 		if (HitActor && HitActor->IsA(ALandscape::StaticClass()))
 		{
 			FVector SnappedLocation;
+			
+			// 현재 충돌된 위치를 셀 격자의 중심점 위치로 스냅
 			if (GridManager->TrySnapToGrid(Hit.Location, SnappedLocation))
 			{
 				return SnappedLocation;
@@ -473,5 +490,58 @@ void UCraftManager::RotateLeftGhostMesh()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("GhostMeshNull"));
 	}
+}
+
+void UCraftManager::SpawnGridDecal()
+{
+
+	//데칼용 머테리얼 로드
+	UMaterialInterface* GridDecalMat = nullptr;
+
+	if (GridDecalMaterialSoft.IsValid())
+	{
+		GridDecalMat = GridDecalMaterialSoft.Get();
+		UE_LOG(LogTemp, Warning, TEXT("캐시된 머테리얼 사용"));
+	}
+
+	if (!GridDecalMat)
+	{
+		GridDecalMat = GridDecalMaterialSoft.LoadSynchronous();
+
+		UE_LOG(LogTemp, Warning, TEXT("데칼 머테리얼 : LoadSynchronous"));
+	}
+
+	if (!GridDecalMat)
+	{
+		GridDecalMat = LoadObject<UMaterialInterface>
+			(
+				nullptr, TEXT("/Game/Seojy/Material/M_Decal.M_Decal")
+			);
+
+		UE_LOG(LogTemp, Warning, TEXT("데칼 머테리얼 : LoadObject"));
+
+	}
+
+
+	// 클라이언트 전용으로 실행
+	if (GridDecalMat)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("데칼 존재"));
+		if (GridManager)
+		{
+			GridManager->CreateGridDecals(GetWorld(), GridDecalMat);
+			UE_LOG(LogTemp, Warning, TEXT("데칼 생성 완료"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("GridManager 유효하지 않음"));
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("데칼 머테리얼 유효하지 않음"));
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("Client_SpawnGridDecal 실행: NetMode %d"), (int32)GetWorld()->GetNetMode());
 }
 
