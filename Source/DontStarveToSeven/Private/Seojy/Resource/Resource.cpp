@@ -73,23 +73,6 @@ void AResource::BeginPlay()
 		InteractionUserWidget->SetInteractionText(FText::FromString(TEXT("Object")));	// 위젯에 넣을 택스트 설정
 		InteractionUserWidget->SetCollapsedWidget();		// 위젯이 안보이게 함
 	}
-	//if (HasAuthority() && CollectPar)
-	//{
-	//	UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), CollectPar, GetActorLocation() + FVector(0, 0, 100));
-	//}
-
-		// 서버에서만 파티클 생성. 딜레이 걸기!
-	//if (HasAuthority() && CollectPar)
-	//{
-	//	FTimerHandle TimerHandle_DelayedParticle;
-	//	GetWorld()->GetTimerManager().SetTimer(
-	//		TimerHandle_DelayedParticle,
-	//		this,
-	//		&AResource::PlayInitialParticle,
-	//		0.1f, // 0.1초 후 실행
-	//		false
-	//	);
-	//}
 
 }
 
@@ -119,7 +102,9 @@ void AResource::Tick(float DeltaTime)
 }
 
 // 도구가 리소스 액터에게 오버랩 되었을 때
-void AResource::OnOverlap(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+void AResource::OnOverlap(
+	UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, 
+	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	ABasePlayerCharacter* Player = Cast<ABasePlayerCharacter>(OtherActor->GetParentActor());
 
@@ -146,6 +131,7 @@ void AResource::Server_HandleInteraction_Implementation(FVector ImpactPoint, ABa
 	HandleInteractionInternal(ImpactPoint, Player);
 }
 
+// 상호작용 구현 ( 아이템 추가, 파티클 재생, HP 감소 )
 void AResource::HandleInteractionInternal(FVector ImpactPoint, ABasePlayerCharacter* Player)
 {
 	if (!Player)
@@ -211,7 +197,6 @@ void AResource::MulticastPlayParticleEffect_Implementation(FVector Location)
 		FRotator::ZeroRotator,
 		ParticleSize
 	);
-	//DrawDebugSphere(GetWorld(), AdjustedLocation, 50.f, 12, FColor::Red, false, 2.f);
 
 }
 

@@ -39,11 +39,6 @@ public:
 	UFUNCTION(Client, Reliable)
 	void ClientEndCraftMode();
 
-	UFUNCTION(Client, Reliable)
-	void Client_SpawnGridDecal();
-
-	void SpawnGridDecal();
-
 
 	/* 격자 시스템 */
 
@@ -82,6 +77,7 @@ private:
 	TSubclassOf<AActor> GetActorClass(ECraftType craftType);
 
 public:
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	ABasePlayerCharacter* MyPlayer = Cast<ABasePlayerCharacter>(GetOwner());
 	
@@ -93,10 +89,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "CraftType")
 	TArray<TSubclassOf<ABaseCraft>> CraftTypeArr;
 
-	// 데칼용 머테리얼
-	UPROPERTY(EditDefaultsOnly, Category = "Craft")
-	TSoftObjectPtr<UMaterialInterface> GridDecalMaterialSoft;
-
 private:
 
 	UPROPERTY()
@@ -104,6 +96,7 @@ private:
 
 	UPROPERTY()
 	ADTS_GamePlayPlayerController* PlayerPC = nullptr;
+
 
 	/* 격자 시스템 */
 	UPROPERTY(VisibleAnywhere)

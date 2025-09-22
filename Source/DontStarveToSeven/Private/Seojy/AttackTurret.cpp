@@ -164,7 +164,7 @@ void AAttackTurret::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	// 서버에서만 회전 계산
+	// 현재 공격 모드일 때만 자동 회전 적용
 	if (HasAuthority() && CurrentMode == ECraftMode::Actual
 		&& bIsInAttackMode && CurrentTarget)
 	{
@@ -240,6 +240,7 @@ void AAttackTurret::SetCraftMode(ECraftMode NewMode)
 
 		if (HasAuthority())
 		{
+			// 타겟 추적 타이머 실행
 			GetWorldTimerManager().SetTimer(TimerHandle_TargetCheck, this, &AAttackTurret::PeriodicTargetCheck, 0.5f, true);
 		}
 	}
@@ -271,12 +272,15 @@ void AAttackTurret::UpdateTarget()
 	if (CurrentMode == ECraftMode::Ghost)
 		return;
 
+	// 타겟이 없을 경우 공격 모드 해제
 	if (Targets.Num() == 0)
 	{
 		CurrentTarget = nullptr;
 		bIsInAttackMode = false;
 		bIsCanFire = false;
 	}
+
+	// 배열에서 0번에 있는 적을 타겟으로 설정
 	else if(Targets.Num() > 0)
 	{
 		CurrentTarget = Targets[0];
@@ -286,9 +290,10 @@ void AAttackTurret::UpdateTarget()
 
 	if (bIsInAttackMode)
 	{
-		//아직 타이머가 동작중이 아니라면
+		//공격 타이머가 동작중이 아니라면
 		if (!GetWorldTimerManager().IsTimerActive(TimerHandle_Fire))
 		{
+			// 공격 실행
 			GetWorldTimerManager().SetTimer(
 				TimerHandle_Fire,
 				this,
@@ -300,6 +305,7 @@ void AAttackTurret::UpdateTarget()
 	}
 	else
 	{
+		// 공격 모드가 아니라면 공격 타이머 중지
 		GetWorldTimerManager().ClearTimer(TimerHandle_Fire);
 	}
 
@@ -319,6 +325,7 @@ void AAttackTurret::UpdateRotation(float DeltaTime)
 	if (CurrentTarget && bIsInAttackMode)
 	{
 		FVector Pivot = TurretSwivel->GetComponentLocation();
+		// 타겟 방향 벡터 계산
 		FVector DirToTarget = (CurrentTarget->GetActorLocation() - Pivot).GetSafeNormal();
 		
 		// 터렛의 기본 회전값을 보정
@@ -326,7 +333,7 @@ void AAttackTurret::UpdateRotation(float DeltaTime)
 
 	}
 
-	////현재 회전에서 목표 회전으로 보간하여 부드럽게 회전
+	//현재 회전에서 목표 회전으로 보간하여 부드럽게 회전
 	FRotator CurrentSwivelRot = TurretSwivel->GetComponentRotation();
 	FRotator NewSwivelRot = FMath::RInterpTo(
 		CurrentSwivelRot,
@@ -335,8 +342,10 @@ void AAttackTurret::UpdateRotation(float DeltaTime)
 		5.0f
 	);
 
-	// 서버에서만 회전 + 복제 변수 갱신
+	// 회전 실행
 	TurretSwivel->SetWorldRotation(NewSwivelRot);
+
+
 	TurretHeadRot = NewSwivelRot;
 }
 
@@ -346,16 +355,17 @@ void AAttackTurret::TryFire()
 		bIsInAttackMode,
 		CurrentTarget ? *CurrentTarget->GetName() : TEXT("None"),
 		BulletClass ? *BulletClass->GetName() : TEXT("None"));
+
+
+	// 타겟이 있고, 공격 모드일 때 포탄 발사
 	if (bIsInAttackMode && CurrentTarget && BulletClass && bIsCanFire)
 	{
-		//UE_LOG(LogTemp, Log, TEXT("Try Fire Success"));
 		// 서버에서 포탄 쏘기 실행
 		ServerFire();
 	}
 	else
 	{
 		GetWorldTimerManager().ClearTimer(TimerHandle_Fire);
-		//UE_LOG(LogTemp, Log, TEXT("Try Fire Failed"));
 	}
 }
 
@@ -374,6 +384,7 @@ void AAttackTurret::ServerFire_Implementation()
 		}
 		return;
 	}
+
 	// 터렛 헤드의 최신 변환 업데이트
 	if (TurretSwivel)
 	{
@@ -390,6 +401,7 @@ void AAttackTurret::OnRep_TurretState()
 	//UE_LOG(LogTemp, Log, TEXT("UpdateTarget : bIsInAttackMode : %d"), bIsInAttackMode);
 }
 
+// 주기적 타겟 검사
 void AAttackTurret::PeriodicTargetCheck()
 {
 	//오버랩 스피어가 없다면 리턴.
@@ -400,10 +412,7 @@ void AAttackTurret::PeriodicTargetCheck()
 	TArray<AActor*> OverlappingActors;
 	DetectionSphere->GetOverlappingActors(OverlappingActors, AActor::StaticClass());
 
-	// 기본 타겟 배열을 배우고
-	//Targets.Empty();
-
-	// 2. 기존 Target 배열을 순회하면서, 현재 overlappingActors에 포함되지 않거나 유효하지 않은 액터를 .
+	// 2. 기존 Target 배열을 순회하면서, 현재 overlappingActors에 포함되지 않거나 유효하지 않은 액터를 삭제한다.
 	for (int32 i = Targets.Num() - 1; i >= 0; --i)
 	{
 		AActor* OldTarget = Targets[i];
@@ -427,6 +436,7 @@ void AAttackTurret::PeriodicTargetCheck()
 			&& !Actor->IsA(ABullet::StaticClass()) 
 			&& !Targets.Contains(Actor))
 		{
+			// 구체 범위 내에 있는지 확인
 			float DistSq = FVector::DistSquared(Actor->GetActorLocation(), SphereCenter);
 			if (DistSq <= SphereRadiusSq)
 			{
@@ -436,19 +446,19 @@ void AAttackTurret::PeriodicTargetCheck()
 		}
 	}
 	
-	// 4. 타겟 배열을 기반으로  CurrentTarget 및 공격 모드를 업데이트
+	// 4. 타겟 배열을 기반으로 공격 모드를 업데이트하고 공격 실행
 	UpdateTarget();
 
-
+	// 5. 타겟이 없다면 공격 모드 해제 및 발사 타이머 중지
 	if (Targets.Num() == 0)
 	{
 		bIsInAttackMode = false;
 		bIsCanFire = false;
 		GetWorldTimerManager().ClearTimer(TimerHandle_Fire);
-		//UE_LOG(LogTemp, Log, TEXT("PeriodicTargetCheck NO : No Target"));
 	}
 	else 
 	{
+		// 만약 타겟이 있다면 공격 모드로 전환
 		bIsInAttackMode = true;
 		if (!GetWorldTimerManager().IsTimerActive(TimerHandle_Fire))
 		{

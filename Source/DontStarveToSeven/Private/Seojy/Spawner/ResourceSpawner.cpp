@@ -21,6 +21,7 @@ AResourceSpawner::AResourceSpawner()
 
 }
 
+// 자원 오브젝트 스폰
 void AResourceSpawner::SpawnResource()
 {
 	if (!HasAuthority())
@@ -32,12 +33,14 @@ void AResourceSpawner::SpawnResource()
 
 	for (int32 i = 0; i < SpawnCount; ++i)
 	{
+		// 랜덤하게 자원 타입 선택
 		int32 Index = FMath::RandRange(0, ResourceTypes.Num() - 1);
 		TSubclassOf<AResource> ResourceClass = ResourceTypes[Index];
 
 		if (!ResourceClass)
 			return;
 
+		// 박스 영역 내 랜덤한 위치 값 설정
 		FVector SpawnLocation = GetRandomLocationInBox();
 		FRotator SpawnRotation = FRotator::ZeroRotator;
 
@@ -46,6 +49,7 @@ void AResourceSpawner::SpawnResource()
 			AdjustIfPossibleButAlwaysSpawn;
 		Params.Owner = this;
 
+		// 지형물의 높이를 보정하여 자원 오브젝트가 땅에 정확히 붙도록 함
 		GetLandScapeHeight(SpawnLocation);
 
 		AResource* Spawned = World->SpawnActor<AResource>(ResourceClass,
@@ -66,6 +70,7 @@ void AResourceSpawner::BeginPlay()
 	}
 }
 
+// 해당 박스 컴포넌트 내에서 랜덤한 위치를 반환
 FVector AResourceSpawner::GetRandomLocationInBox() const
 {
 	FVector Origin = SpawnArea->GetComponentLocation();
@@ -74,6 +79,7 @@ FVector AResourceSpawner::GetRandomLocationInBox() const
 	return UKismetMathLibrary::RandomPointInBoundingBox(Origin, Extent);
 }
 
+// 지형물의 높이를 보정하여 자원 오브젝트가 땅에 정확히 붙도록 함
 void AResourceSpawner::GetLandScapeHeight(FVector& Location) const
 {
 	FVector TraceStart = Location + FVector(0, 0, 10000.f);
@@ -91,6 +97,4 @@ void AResourceSpawner::GetLandScapeHeight(FVector& Location) const
 			Location.Z = HitResult.Location.Z;
 		}
 	}
-
-
 }

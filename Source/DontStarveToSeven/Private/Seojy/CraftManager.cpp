@@ -19,13 +19,6 @@ UCraftManager::UCraftManager(const FObjectInitializer& ObjectInitializer)
 	// GridManager 생성 
 	GridManager = ObjectInitializer.CreateDefaultSubobject<UGridManager>(this, TEXT("GridManager"));
 
-
-	/*static ConstructorHelpers::FObjectFinder<UMaterialInterface> DecalMat(
-		TEXT("/Game/Seojy/Material/M_Decal.M_Decal"));
-	if (DecalMat.Succeeded())
-	{
-		GridDecalMaterialSoft = DecalMat.Object;
-	}*/
 }
 
 
@@ -49,7 +42,6 @@ void UCraftManager::BeginPlay()
 	// NavMesh 가져오기
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ANavMeshBoundsVolume::StaticClass(),
 		NavVolume);
-
 }
 
 
@@ -75,7 +67,6 @@ void UCraftManager::SetGhostMesh(ECraftType CraftType)
 	}
 }
 
-// Craft 버튼을 누르면 실행되는 함수
 void UCraftManager::StartCraftMode(ECraftType craftType)
 {
 	// 해당 레벨에서 LandScape를 가져오기.
@@ -92,38 +83,36 @@ void UCraftManager::StartCraftMode(ECraftType craftType)
 	// 격자 시스템 초기화 
 	if (GridManager)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("GridManager 유효"));
-
 		//명시적으로 월드 포인터를 GridManager에 전달
 		GridManager->SetWorld(GetWorld());
 
 		//터레인을 기준으로 격자 초기화
 		if (TerrainActor)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("TerrainActor 유효"));
 			GridManager->GridCells.Empty();
-
-			// 셀 크기 200 으로 초기화
 			GridManager->InitializeGridFromTerrain(TerrainActor, 200);
-			UE_LOG(LogTemp, Warning, TEXT("그리드 매니저 생성"));
+			UE_LOG(LogTemp, Warning, TEXT("GridSystem 초기화"));
 
-			// 디버그용 그리드 출력
-			//GridManager->DrawDebugGrid(GetWorld());
+			//데칼용 머테리얼 로드
+			UMaterialInterface* GridDecalMat = LoadObject<UMaterialInterface>
+				(
+					nullptr, TEXT("Material'/Game/Seojy/Material/M_Decal.M_Decal'")
+				);
 
-			// 클라이언트 용 그리드 데칼 생성
-			Client_SpawnGridDecal();
+			// 데칼 생성
+			if (GridDecalMat)
+			{
+				if (GetOwner()->bNetLoadOnClient)
+				{
+					GridManager->CreateGridDecals(GetWorld(), GridDecalMat);
+				}
+			}
 		}
-		else 
-		{
-			UE_LOG(LogTemp, Warning, TEXT("TerrainActor 없음"));
-		}
-
 	}
 
-	// GhostMesh 생성
 	if (!GhostMesh)
 	{
-		// 해당 Enum 타입에 맞는 클래스 가져오기
+		// GhostMesh 생성
 		UClass* craftClass = GetActorClass(craftType);
 		if (!craftClass)
 		{
@@ -131,7 +120,6 @@ void UCraftManager::StartCraftMode(ECraftType craftType)
 			return;
 		}
 
-		// 고스트 메쉬 생성
 		GhostMesh = GetWorld()->SpawnActor<ABaseCraft>
 			(
 				GetActorClass(craftType),
@@ -145,24 +133,15 @@ void UCraftManager::StartCraftMode(ECraftType craftType)
 			GhostMesh->SetActorEnableCollision(false);
 		}
 
-
-		// 타이머 실행
+		// LineTrace 실행 
 		GetWorld()->GetTimerManager().SetTimer(TimerHandle_UpdateGhostMesh, this,
 			&UCraftManager::UpdateGhostMesh, 0.1f, true);
 	}
-
-
 }
 
 void UCraftManager::EndCraftMode()
 {
-
 	ClientEndCraftMode();
-}
-
-void UCraftManager::Client_SpawnGridDecal_Implementation()
-{
-	SpawnGridDecal();
 }
 
 void UCraftManager::ClientEndCraftMode_Implementation()
@@ -273,9 +252,11 @@ void UCraftManager::ServerTryPlaceBuilding_Implementation(
 		}
 	}
 
+	// 현재 설치 가능한 상태인지 다시 점검
 	if (GridManager->CanPlaceBuilding(PlacementLocation, Width, Height) && bCanBuild)
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Current bIsCanBuild : %d"), bCanBuild);
+
 		// 현재 고스트 메쉬의 회전 반영
 		FRotator DesiredRotation = Rotation;
 
@@ -286,6 +267,7 @@ void UCraftManager::ServerTryPlaceBuilding_Implementation(
 				PlacementLocation,
 				DesiredRotation
 			);
+
 		if (SpawnedBuilding)
 		{
 			//해당 점유 상태를 true로 변환한다.
@@ -295,7 +277,7 @@ void UCraftManager::ServerTryPlaceBuilding_Implementation(
 			SpawnedBuilding->SetCraftMode(ECraftMode::Actual);
 			SpawnedBuilding->InteractionWidget->SetRelativeLocation(FVector(0.f, 0.0f, 0.f));
 
-			// 생성된 건축물 정보 서버에 저장
+			
 			ASHGameModeBase* GM = Cast<ASHGameModeBase>(GetWorld()->GetAuthGameMode());
 			if(!GM)
 			{
@@ -303,12 +285,18 @@ void UCraftManager::ServerTryPlaceBuilding_Implementation(
 				EndCraftMode();
 				return;
 			}
-
-			GM->UpdateBuildingInfo(SpawnedBuilding->CraftID, SpawnedBuilding->CraftName, SpawnedBuilding->GetCraftHP(), SpawnedBuilding->GetActorTransform());
+			// 생성된 건축물 정보 서버에 저장
+			GM->UpdateBuildingInfo(
+				SpawnedBuilding->CraftID, SpawnedBuilding->CraftName, 
+				SpawnedBuilding->GetCraftHP(), SpawnedBuilding->GetActorTransform());
 
 			UE_LOG(LogTemp, Warning, TEXT("SuccessPlaceBuilding"));
 			EndCraftMode();
 			return;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Fail to PlaceBuilding"));
 		}
 	}
 	else
@@ -322,7 +310,6 @@ bool UCraftManager::ServerTryPlaceBuilding_Validate(
 {
 	return true;
 }
-
 // 계속해서 고스트 메쉬를 업데이트 한다.
 void UCraftManager::UpdateGhostMesh()
 {
@@ -337,7 +324,6 @@ void UCraftManager::UpdateGhostMesh()
 		UE_LOG(LogTemp, Error, TEXT("GridManager has no CELL"));
 	}
 
-
 	// 그리드 매니저에서 셀 형식으로 로케이션을 가져온다.
 	// 플레이어 시점(LineTrace)를 통한 배치 위치 결정 
 	FVector PlacementLocation = GetPlacementLocation();
@@ -351,16 +337,13 @@ void UCraftManager::UpdateGhostMesh()
 	TArray<FOverlapResult> OverlapResult;
 	FCollisionQueryParams QueryParams;
 	QueryParams.bTraceComplex = true;
-	//QueryParams.AddIgnoredActor(OwnerPlayer);
-	// 자기 자신을 제외
-	QueryParams.AddIgnoredActor(GhostMesh);
+	QueryParams.AddIgnoredActor(GhostMesh);		//자기 자신은 Overlap 검사에서 제외
 
 	// Nav 메쉬 무시
 	for (AActor* Volume : NavVolume)
 	{
 		QueryParams.AddIgnoredActor(Volume);
 	}
-
 
 	// 필요시 배치 대상 액터를 무시하도록
 	bool bHasOverlap = GetWorld()->OverlapMultiByObjectType(
@@ -398,7 +381,7 @@ void UCraftManager::UpdateGhostMesh()
 			break;
 		}
 	}
-
+	
 	// 플레이어와의 거리를 측정
 	float DistToPlayer = FVector::Dist(PlacementLocation, OwnerPlayer->GetActorLocation());
 	bool bTooCloseToPlayer = (DistToPlayer < 80.f);
@@ -406,18 +389,14 @@ void UCraftManager::UpdateGhostMesh()
 	//최종 겹침 여부
 	bool bFinalOverlap = bHasOverlap || bTooCloseToPlayer;
 
-	//DrawDebugBox(GetWorld(), BoxCenter, BoxExtent, FColor::Red, false, 5.f, 0, 2.f);
-
 	//만약 현재 전달받은 위치가 건물을 세울 수 있는 위치라면
 	//Overlap 검사 결과에 따라 GHostMesh 머티리얼 변경
 	GhostMesh->SetPreviewColor(!bFinalOverlap);
 
-	// 건물 설치 가능 여부 설정
 	GhostMesh->bIsCanBuild = !bFinalOverlap;
 }
 
 // 프리뷰 건물의 위치를 카메라에서 나오는 라인 트레이스를 활용하여 쏜다.
-// 무조건 격자 내 중심점에 위치하도록 스냅한다.
 FVector UCraftManager::GetPlacementLocation()
 {
 	if (!PlayerPC)
@@ -432,22 +411,18 @@ FVector UCraftManager::GetPlacementLocation()
 
 	FHitResult Hit;
 	FCollisionQueryParams TraceParams;
-	//TraceParams.AddIgnoredActor(OwnerPlayer);
-	TraceParams.AddIgnoredActor(GhostMesh);
+	TraceParams.AddIgnoredActor(GhostMesh);		//자기 자신 무시
 
 	// 카메라 (플레이어 시선) 라인 트레이스 실행
 	if (GetWorld()->LineTraceSingleByChannel(Hit, TraceStart, TraceEnd, ECC_Visibility, TraceParams))
 	{
-		//DrawDebugLine(GetWorld(), TraceStart, Hit.Location, FColor::Blue, false, 0.1f, 0, 2.0f);
-
 		AActor* HitActor = Hit.GetActor();
 		if (HitActor && HitActor->IsA(ALandscape::StaticClass()))
 		{
 			FVector SnappedLocation;
-			
-			// 현재 충돌된 위치를 셀 격자의 중심점 위치로 스냅
 			if (GridManager->TrySnapToGrid(Hit.Location, SnappedLocation))
 			{
+				// 격자 안이라면 스냅된 위치를 반환
 				return SnappedLocation;
 			}
 			else
@@ -455,14 +430,14 @@ FVector UCraftManager::GetPlacementLocation()
 				//격자 밖이라면
 				UE_LOG(LogTemp, Warning, TEXT("GetPlacementLocation : Snap 실패"));
 			}
-
 		}
-
 	}
+
+	// 라인 트레이스에 실패했다면 플레이어 위치 반환
 	return GetOwner()->GetActorLocation();
 }
 
-// 건물 우측  회전
+// E 버튼 : 건물 우측  회전
 void UCraftManager::RotateRightGhostMesh()
 {
 	if (GhostMesh)
@@ -477,7 +452,7 @@ void UCraftManager::RotateRightGhostMesh()
 	}
 }
 
-// 건물 좌측 회전
+// Q 버튼 : 건물 좌측 회전
 void UCraftManager::RotateLeftGhostMesh()
 {
 	if (GhostMesh)
@@ -490,58 +465,5 @@ void UCraftManager::RotateLeftGhostMesh()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("GhostMeshNull"));
 	}
-}
-
-void UCraftManager::SpawnGridDecal()
-{
-
-	//데칼용 머테리얼 로드
-	UMaterialInterface* GridDecalMat = nullptr;
-
-	if (GridDecalMaterialSoft.IsValid())
-	{
-		GridDecalMat = GridDecalMaterialSoft.Get();
-		UE_LOG(LogTemp, Warning, TEXT("캐시된 머테리얼 사용"));
-	}
-
-	if (!GridDecalMat)
-	{
-		GridDecalMat = GridDecalMaterialSoft.LoadSynchronous();
-
-		UE_LOG(LogTemp, Warning, TEXT("데칼 머테리얼 : LoadSynchronous"));
-	}
-
-	if (!GridDecalMat)
-	{
-		GridDecalMat = LoadObject<UMaterialInterface>
-			(
-				nullptr, TEXT("/Game/Seojy/Material/M_Decal.M_Decal")
-			);
-
-		UE_LOG(LogTemp, Warning, TEXT("데칼 머테리얼 : LoadObject"));
-
-	}
-
-
-	// 클라이언트 전용으로 실행
-	if (GridDecalMat)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("데칼 존재"));
-		if (GridManager)
-		{
-			GridManager->CreateGridDecals(GetWorld(), GridDecalMat);
-			UE_LOG(LogTemp, Warning, TEXT("데칼 생성 완료"));
-		}
-		else
-		{
-			UE_LOG(LogTemp, Warning, TEXT("GridManager 유효하지 않음"));
-		}
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("데칼 머테리얼 유효하지 않음"));
-	}
-
-	UE_LOG(LogTemp, Warning, TEXT("Client_SpawnGridDecal 실행: NetMode %d"), (int32)GetWorld()->GetNetMode());
 }
 

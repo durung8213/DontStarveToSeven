@@ -82,18 +82,23 @@ FVector UGridManager::SnapToGrid(FVector WorldLocation)
 // SnapToGrid 의 리팩토링 함수
 // 해당 함수와 실행하는 것이 동일하지만 반환값과 매개변수가 다르다.
 
+
 bool UGridManager::TrySnapToGrid(FVector WorldLocation, FVector& OutSnapedLocation)
 {
-	// 로케이션 좌표의 평균 가운데 좌표를 구한다.
+	// LineTrace로 충돌된 위치를 반올림 함수를 사용해 Grid 중의 가장 가까운 좌표를 찾는다.
 	int32 GridX = FMath::RoundToInt((WorldLocation.X - GridOrigin.X) / GridSize);
 	int32 GridY = FMath::RoundToInt((WorldLocation.Y - GridOrigin.Y) / GridSize);
 
+	// 해당 Key 값이 셀의 크기를 넘지 않도록 Clamp를 걸어준다.
 	GridX = FMath::Clamp(GridX, 0, GridCount - 1);
 	GridY = FMath::Clamp(GridY, 0, GridCount - 1);
 
-	FIntPoint Key(GridX, GridY);
+	const FIntPoint Key = FIntPoint{ GridX, GridY };
+
+	// 해당 좌표의 셀이 있다면
 	if (GridCells.Contains(Key))
 	{
+		// 해당 셀의 중심점 Location을 저장하고, True 값을 리턴한다.
 		float Height = GridCells[Key].TerrainHeight;
 		OutSnapedLocation = FVector(GridOrigin.X + (GridX * GridSize), 
 									GridOrigin.Y + (GridY * GridSize),
@@ -108,8 +113,7 @@ bool UGridManager::TrySnapToGrid(FVector WorldLocation, FVector& OutSnapedLocati
 }
 
 
-// 현재 셀의 점유 상태를 반환한다.
-// 동적 Overlap도 실행한다.
+// 건축물을 설치하기 전, 현재 셀의 설치 가능 상태를 반환한다.
 bool UGridManager::CanPlaceBuilding(FVector Location, int32 Width, int32 Height)
 {
 	// 시작 위치를 격자 인덱스로 반환
@@ -144,9 +148,7 @@ bool UGridManager::CanPlaceBuilding(FVector Location, int32 Width, int32 Height)
 	TArray<FOverlapResult> OverlapResults;
 	FCollisionQueryParams QueryParams(SCENE_QUERY_STAT(CanPlaceBuilding), false);
 
-	//필요한 경우 배치 대상 액터나 이미 캐싱된 오브젝트를 무시합니다.
-	//QueryParams.AddIgnoredActor(Ghostmesh);
-
+	// Box Overlap을 실행하여 겹치는 액터가 있는지 검사
 	bool bHasOverlap = GetWorld()->OverlapMultiByObjectType
 	(
 		OverlapResults,
@@ -156,8 +158,6 @@ bool UGridManager::CanPlaceBuilding(FVector Location, int32 Width, int32 Height)
 		FCollisionShape::MakeBox(BoxExtent),
 		QueryParams
 	);
-
-	//DrawDebugBox(GetWorld(), BoxCenter, BoxExtent, FColor::Green, false, 5.f, 0, 2.f);
 
 	if (bHasOverlap)
 	{
@@ -249,10 +249,6 @@ float UGridManager::GetTerrainHeight(FVector WorldLocation)
 		// 라인 트레이스 실행 뒤, Hit 된 것이 있다면
 		AActor* HitActor = HitResult.GetActor();
 
-		/*DrawDebugLine(GetWorld(), Start, End, FColor::Red, true, 2.0f, 0, 1.0f);
-		DrawDebugPoint(GetWorld(), HitResult.Location, 10.0f, FColor::Blue, true, 2.0f);
-		UE_LOG(LogTemp, Warning, TEXT("Hit Actor: %s"), *HitResult.GetActor()->GetName());*/
-
 		if (HitActor)
 		{
 			UE_LOG(LogTemp, Warning, TEXT("Hit Actor: %s"), *HitActor->GetName());
@@ -321,7 +317,7 @@ void UGridManager::CreateGridDecals(UWorld* InWorld, UMaterialInterface* DecalMa
 		return;
 	}
 
-	if (InWorld->IsNetMode(NM_Client))
+	if (!InWorld->IsNetMode(NM_DedicatedServer))
 	{
 		// 이미 존재하는 decal Component 가 있다면 정리
 		for (UDecalComponent* ExistingDecal : GridDecals)
@@ -337,13 +333,18 @@ void UGridManager::CreateGridDecals(UWorld* InWorld, UMaterialInterface* DecalMa
 		// 지면에 평평하게 깔리는 데칼을 생성하기 위해 회전을 -90도로 설정
 		FRotator DecalRotation(-90.0f, 0.f, 0.f);
 
-		//데칼 크기
-		FVector DecalSize(200.0f, GridSize * 0.5f, GridSize * 0.5f);
+		//데칼 크기 설정
+		FVector DecalSize;
+		DecalSize.X = 200.0f;
+		DecalSize.Y = GridSize * 0.5f;
+		DecalSize.Z = GridSize * 0.5f;
 
 		for (auto& Elem : GridCells)
 		{
 			const FGridCell& Cell = Elem.Value;
-			FVector SpawnLocaiton = Cell.WorldLocation;
+
+			// 적용된 중심점 Offset 보정을 제거
+			FVector SpawnLocaiton = Cell.WorldLocation - FVector(GridSize * 0.5f, GridSize * 0.5f, 0);
 
 			// 지면에 붙이려면, 셀 위치보다 약간 위로 올려야 깔끔히 보임
 			SpawnLocaiton.Z += 2.f;
@@ -362,18 +363,14 @@ void UGridManager::CreateGridDecals(UWorld* InWorld, UMaterialInterface* DecalMa
 				// 원근에서 잘 보이도록 FadeScreenSize를 작게 설정 ( 기본값 0.01 )
 				SpawnedDecal->SetFadeScreenSize(0.001f);
 
-				// 필요시 SortOrder 등을 추가 설정
 				// 데칼 참조 보관
 				GridDecals.Add(SpawnedDecal);
-
-				UE_LOG(LogTemp, Warning, TEXT("SpawnedDecal Success"));
 			}
-			else 
+			else
 			{
-				UE_LOG(LogTemp, Warning, TEXT("SpawnedDecal Fail"));
+				UE_LOG(LogTemp, Warning, TEXT("Fail Spawn Decal : No SpawnedDecal"));
 			}
 		}
-
 	}
 }
 
@@ -401,9 +398,10 @@ void UGridManager::InitializeGridFromTerrain(AActor* TerrainActor, int32 Desired
 	FVector Max = Bounds.Max;
 	FVector TerrainSize = Max - Min;
 
+	// 최소값을 기준으로 함.
 	GridOrigin = FVector(Min.X, Min.Y, Min.Z);
 
-	// 각 셀의 크기 ( 원하는 값)
+	// 각 셀의 크기 ( 원하는 값 : 현재는 200 으로 설정 )
 	GridSize = DesiredCellSize;
 
 	// 격자 개수 (가로, 세로)
@@ -418,13 +416,17 @@ void UGridManager::InitializeGridFromTerrain(AActor* TerrainActor, int32 Desired
 		for (int32 Y = 0; Y < GridCount; Y++)
 		{
 			FIntPoint GridCoords(X, Y);
-			FVector CellBase = GridOrigin + FVector(X * GridSize, Y * GridSize, 0);
+			const FVector CellBase = GridOrigin + FVector(X * GridSize, Y * GridSize, 0);
+
+			// 중심점 Offset 적용
+			const FVector CellCenter = CellBase + FVector(GridSize * 0.5f, GridSize * 0.5f, 0);
 
 			// 각 셀의 높이는 LineTrace 나 Terrain 데이터를 통해 가져올 수 있음.
 			float Height = GetTerrainHeight(CellBase);
-			FVector CellLocation = CellBase;
+			FVector CellLocation = CellCenter;
 			CellLocation.Z = Height;
 
+			// 셀 하나에 대한 정보를 구조체에 저장
 			FGridCell NewCell;
 			NewCell.WorldLocation = CellLocation;
 			NewCell.TerrainHeight = Height;
@@ -434,6 +436,5 @@ void UGridManager::InitializeGridFromTerrain(AActor* TerrainActor, int32 Desired
 			UE_LOG(LogTemp, Warning, TEXT("MapCount : %d"), static_cast<int>(GridCells.Num()));
 		}
 	}
-
 
 }

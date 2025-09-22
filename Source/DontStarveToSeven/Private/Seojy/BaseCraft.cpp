@@ -52,9 +52,8 @@ void ABaseCraft::BeginPlay()
 		}
 	}
 
+	// 현재 모드에 따른 머테리얼 적용
 	ApplyBuildingMode();
-
-
 }
 // Sets default values
 ABaseCraft::ABaseCraft()
@@ -105,15 +104,13 @@ void ABaseCraft::BrokenCraft()
 
 void ABaseCraft::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (HasAuthority() && OtherActor && OtherActor->ActorHasTag(FName("Enemy")))
+	if (HasAuthority()&& OtherActor && OtherActor->ActorHasTag(FName("Enemy")))
 	{
 		// 체력 하락
 		TakeDamage(10.0f, OtherActor);
 
 
 		// 파티클 실행
-
-
 	}
 }
 
@@ -159,7 +156,7 @@ void ABaseCraft::Multi_PlayHitEffect_Implementation(const FVector& SpawnLocation
 			HitEffect,
 			this->GetActorTransform());
 	}
-
+	
 }
 
 
@@ -174,14 +171,12 @@ void ABaseCraft::Multi_PlayDestroyEffect_Implementation()
 	}
 }
 
-
-
+// 현재 설치 가능 상태에 따라 다른 색깔의 머테리얼로 설정
 void ABaseCraft::SetPreviewColor(bool bIsCanPlace)
 {
 	bIsCanBuild = bIsCanPlace;
 	FName ParameterName(TEXT("DefaultColor"));
 	FLinearColor NewColor = bIsCanPlace ? FLinearColor::Green : FLinearColor::Red;
-	//UE_LOG(LogTemp, Warning, TEXT("bMyBool: %d, Setting Color : %s"), bIsCanPlace,*NewColor.ToString());
 
 	//캐싱해둔 각 동적 머테리얼 인스턴스에 대해 파라미터 적용
 	for (UMaterialInstanceDynamic* DynMatInst : DynamicMatInstances)
@@ -192,7 +187,6 @@ void ABaseCraft::SetPreviewColor(bool bIsCanPlace)
 			DynMatInst->SetVectorParameterValue(ParameterName, NewColor);
 		}
 	}
-
 }
 
 // 건물 모드 : 다른 모드로 스위치.
@@ -208,6 +202,7 @@ float ABaseCraft::GetCraftHP() const
 	return CraftHP;
 }
 
+// 크래프티 HP 증감
 void ABaseCraft::ApplyDamage_Implementation(bool IsPlus, float amount)
 {
 	if (!HasAuthority())
@@ -232,6 +227,7 @@ void ABaseCraft::ApplyDamage_Implementation(bool IsPlus, float amount)
 // 현재 건축 모드를 세팅한다.
 void ABaseCraft::ApplyBuildingMode()
 {
+	// Mesh 컴포넌트가 없다면 리턴
 	if (ActorMeshComponents.Num() == 0)
 		return;
 
@@ -245,6 +241,7 @@ void ABaseCraft::ApplyBuildingMode()
 			continue;
 		}
 
+		// 고스트 모드 : 설치 예정 모드일 때의 머테리얼 설정
 		if (CurrentMode == ECraftMode::Ghost)
 		{
 			if (GhostMaterial)
@@ -260,6 +257,8 @@ void ABaseCraft::ApplyBuildingMode()
 				MeshComp->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 			}
 		}
+
+		// 실제로 설치될 때 다시 원래의 머테리얼로 변경
 		else if (CurrentMode == ECraftMode::Actual)
 		{
 			if (ActualMaterial)
@@ -269,7 +268,7 @@ void ABaseCraft::ApplyBuildingMode()
 			MeshComp->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 		}
 	}
-
+	
 }
 
 void ABaseCraft::SetBuildingData(int32 Width, int32 Height, ECraftType CraftType)
